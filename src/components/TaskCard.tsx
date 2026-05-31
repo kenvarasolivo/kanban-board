@@ -1,54 +1,20 @@
-import { useState, useRef, useEffect } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import type { Task } from '../types';
+import { PRIORITY_META, describeDue } from '../lib/task';
+import { CalendarIcon, DescriptionIcon, TrashIcon } from './icons';
 
 interface Props {
   task: Task;
   index: number;
   columnId: string;
-  onEdit: (taskId: string, content: string) => void;
+  onOpen: (taskId: string) => void;
   onDelete: (taskId: string, columnId: string) => void;
 }
 
-export function TaskCard({ task, index, columnId, onEdit, onDelete }: Props) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(task.content);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
-      textareaRef.current.select();
-    }
-  }, [isEditing]);
-
-  function startEdit() {
-    setEditValue(task.content);
-    setIsEditing(true);
-  }
-
-  function saveEdit() {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== task.content) {
-      onEdit(task.id, trimmed);
-    }
-    setIsEditing(false);
-  }
-
-  function cancelEdit() {
-    setEditValue(task.content);
-    setIsEditing(false);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      saveEdit();
-    }
-    if (e.key === 'Escape') {
-      cancelEdit();
-    }
-  }
+export function TaskCard({ task, index, columnId, onOpen, onDelete }: Props) {
+  const priority = task.priority ? PRIORITY_META[task.priority] : null;
+  const due = task.dueDate ? describeDue(task.dueDate) : null;
+  const hasMeta = priority || due || task.description;
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -57,109 +23,62 @@ export function TaskCard({ task, index, columnId, onEdit, onDelete }: Props) {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
+          onClick={() => onOpen(task.id)}
           className={[
-            'group relative bg-gray-800 border rounded-xl p-3 select-none transition-all duration-150',
+            'group relative overflow-hidden rounded-xl border bg-gray-800/90 p-3 pl-3.5 select-none transition-all duration-150',
             snapshot.isDragging
-              ? 'border-blue-500 shadow-2xl shadow-black/70 rotate-1 scale-105 opacity-95'
-              : 'border-gray-700 hover:border-gray-500 hover:shadow-md hover:shadow-black/40 cursor-grab active:cursor-grabbing',
+              ? 'border-blue-500/60 shadow-2xl shadow-black/70 rotate-[1.5deg] scale-[1.03]'
+              : 'border-white/8 hover:border-white/20 hover:bg-gray-800 hover:shadow-lg hover:shadow-black/40 cursor-pointer',
           ].join(' ')}
         >
-          {!isEditing ? (
-            <>
-              {/* Action buttons — revealed on hover */}
-              <div
-                className={[
-                  'absolute top-2 right-2 flex gap-1 transition-opacity duration-150',
-                  snapshot.isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-100',
-                ].join(' ')}
-              >
-                <button
-                  onMouseDown={e => e.stopPropagation()}
-                  onClick={e => { e.stopPropagation(); startEdit(); }}
-                  className="p-1 rounded-md hover:bg-gray-600 text-gray-500 hover:text-gray-200 transition-colors"
-                  aria-label="Edit task"
+          {/* Priority accent bar */}
+          {priority && (
+            <span className={`absolute inset-y-0 left-0 w-1 ${priority.bar}`} />
+          )}
+
+          {/* Quick delete — revealed on hover */}
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onDelete(task.id, columnId); }}
+            className={[
+              'absolute top-2 right-2 rounded-md p-1 text-gray-500 transition-all hover:bg-rose-500/20 hover:text-rose-400',
+              snapshot.isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-100',
+            ].join(' ')}
+            aria-label="Delete task"
+          >
+            <TrashIcon size={13} />
+          </button>
+
+          <p className="pr-6 text-sm leading-relaxed text-gray-100 whitespace-pre-wrap break-words">
+            {task.content}
+          </p>
+
+          {/* Meta row: priority · due date · description indicator */}
+          {hasMeta && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              {priority && (
+                <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${priority.badge}`}>
+                  {priority.label}
+                </span>
+              )}
+              {due && (
+                <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${due.className}`}>
+                  <CalendarIcon size={11} />
+                  {due.label}
+                </span>
+              )}
+              {task.description && (
+                <span
+                  className="inline-flex items-center text-gray-500"
+                  title="This card has a description"
                 >
-                  <PencilIcon />
-                </button>
-                <button
-                  onMouseDown={e => e.stopPropagation()}
-                  onClick={e => { e.stopPropagation(); onDelete(task.id, columnId); }}
-                  className="p-1 rounded-md hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
-                  aria-label="Delete task"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-              <p className="text-gray-100 text-sm leading-relaxed pr-14 whitespace-pre-wrap break-words">
-                {task.content}
-              </p>
-            </>
-          ) : (
-            <div onClick={e => e.stopPropagation()}>
-              <textarea
-                ref={textareaRef}
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={3}
-                className="w-full bg-transparent text-gray-100 text-sm leading-relaxed resize-none outline-none"
-              />
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-700">
-                <button
-                  onClick={saveEdit}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-md transition-colors"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  className="px-3 py-1 text-gray-400 hover:text-gray-200 hover:bg-gray-700 text-xs rounded-md transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+                  <DescriptionIcon size={13} />
+                </span>
+              )}
             </div>
           )}
         </div>
       )}
     </Draggable>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6M14 11v6" />
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-    </svg>
   );
 }

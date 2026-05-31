@@ -1,23 +1,30 @@
 import { useState, useRef, useEffect } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
+import type { DraggableProvided, DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { TaskCard } from './TaskCard';
 import type { Column as ColumnType, Task } from '../types';
+import { PencilIcon, PlusIcon, TrashIcon, XIcon, GripIcon } from './icons';
 
 const ACCENT = [
-  { dot: 'bg-cyan-400',    badge: 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/30' },
-  { dot: 'bg-amber-400',   badge: 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30' },
-  { dot: 'bg-emerald-400', badge: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30' },
-  { dot: 'bg-violet-400',  badge: 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/30' },
-  { dot: 'bg-rose-400',    badge: 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/30' },
-  { dot: 'bg-orange-400',  badge: 'bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/30' },
+  { dot: 'bg-cyan-400',    badge: 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30' },
+  { dot: 'bg-amber-400',   badge: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
+  { dot: 'bg-emerald-400', badge: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
+  { dot: 'bg-violet-400',  badge: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30' },
+  { dot: 'bg-rose-400',    badge: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
+  { dot: 'bg-orange-400',  badge: 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30' },
 ] as const;
 
 interface Props {
   column: ColumnType;
   tasks: Task[];
   colorIndex: number;
+  innerRef: DraggableProvided['innerRef'];
+  draggableProps: DraggableProvided['draggableProps'];
+  dragHandleProps: DraggableProvidedDragHandleProps | null | undefined;
+  isDragging: boolean;
+  isFiltering: boolean;
   onAddTask: (columnId: string, content: string) => void;
-  onEditTask: (taskId: string, content: string) => void;
+  onOpenTask: (taskId: string) => void;
   onDeleteTask: (taskId: string, columnId: string) => void;
   onDeleteColumn: (columnId: string) => void;
   onRenameColumn: (columnId: string, title: string) => void;
@@ -27,8 +34,13 @@ export function Column({
   column,
   tasks,
   colorIndex,
+  innerRef,
+  draggableProps,
+  dragHandleProps,
+  isDragging,
+  isFiltering,
   onAddTask,
-  onEditTask,
+  onOpenTask,
   onDeleteTask,
   onDeleteColumn,
   onRenameColumn,
@@ -93,9 +105,31 @@ export function Column({
   }
 
   return (
-    <div className="flex flex-col w-72 flex-shrink-0 bg-gray-900 rounded-2xl min-h-0 max-h-full">
-      {/* ── Column Header ── */}
-      <div className="flex items-center gap-2 px-4 pt-4 pb-3 flex-shrink-0">
+    <div
+      ref={innerRef}
+      {...draggableProps}
+      className={[
+        'relative isolate flex flex-col w-72 flex-shrink-0 rounded-2xl min-h-0 max-h-full border transition-shadow',
+        isDragging ? 'border-white/20 shadow-2xl shadow-black/60' : 'border-white/8',
+      ].join(' ')}
+    >
+      {/* Frosted-glass layer — kept as a non-ancestor sibling of the cards.
+          backdrop-filter on a card ancestor would become the containing block
+          for the dragged card's `position: fixed`, offsetting it from the cursor.
+          `isolate` on the parent scopes this -z-10 layer to the column. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 rounded-2xl bg-gray-900/70 backdrop-blur-xl"
+      />
+
+      {/* ── Column Header (drag handle) ── */}
+      <div
+        {...dragHandleProps}
+        className="flex items-center gap-2 px-3 pt-3.5 pb-3 flex-shrink-0 cursor-grab active:cursor-grabbing"
+      >
+        <span className="flex-shrink-0 text-gray-600 group-hover:text-gray-400">
+          <GripIcon />
+        </span>
         <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${accent.dot}`} />
 
         {isEditingTitle ? (
@@ -111,7 +145,7 @@ export function Column({
           <h2
             onDoubleClick={() => { setTitleValue(column.title); setIsEditingTitle(true); }}
             title={column.title}
-            className="flex-1 text-gray-100 font-semibold text-sm truncate cursor-default"
+            className="flex-1 text-gray-100 font-semibold text-sm truncate"
           >
             {column.title}
           </h2>
@@ -123,24 +157,24 @@ export function Column({
 
         <button
           onClick={() => { setTitleValue(column.title); setIsEditingTitle(true); }}
-          className="flex-shrink-0 p-1 rounded-md hover:bg-gray-700 text-gray-600 hover:text-gray-300 transition-colors"
+          className="flex-shrink-0 p-1 rounded-md hover:bg-white/10 text-gray-600 hover:text-gray-300 transition-colors"
           aria-label="Rename column"
         >
           <PencilIcon />
         </button>
         <button
           onClick={() => onDeleteColumn(column.id)}
-          className="flex-shrink-0 p-1 rounded-md hover:bg-red-500/20 text-gray-600 hover:text-red-400 transition-colors"
+          className="flex-shrink-0 p-1 rounded-md hover:bg-rose-500/20 text-gray-600 hover:text-rose-400 transition-colors"
           aria-label="Delete column"
         >
           <TrashIcon />
         </button>
       </div>
 
-      <div className="mx-4 border-t border-gray-800 flex-shrink-0" />
+      <div className="mx-4 border-t border-white/8 flex-shrink-0" />
 
       {/* ── Task List (scrollable Droppable) ── */}
-      <Droppable droppableId={column.id}>
+      <Droppable droppableId={column.id} type="task">
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
@@ -156,11 +190,16 @@ export function Column({
                 task={task}
                 index={idx}
                 columnId={column.id}
-                onEdit={onEditTask}
+                onOpen={onOpenTask}
                 onDelete={onDeleteTask}
               />
             ))}
             {provided.placeholder}
+            {tasks.length === 0 && (
+              <p className="px-2 py-6 text-center text-xs text-gray-600 select-none">
+                {isFiltering ? 'No matching cards' : 'No cards yet'}
+              </p>
+            )}
           </div>
         )}
       </Droppable>
@@ -187,7 +226,7 @@ export function Column({
               </button>
               <button
                 onClick={() => { setNewCardContent(''); setIsAddingCard(false); }}
-                className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-500 hover:text-gray-300 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-colors"
                 aria-label="Cancel"
               >
                 <XIcon />
@@ -197,7 +236,7 @@ export function Column({
         ) : (
           <button
             onClick={() => setIsAddingCard(true)}
-            className="mt-1 w-full flex items-center gap-2 px-2 py-2 rounded-xl text-gray-500 hover:text-gray-300 hover:bg-gray-800 text-sm transition-colors"
+            className="mt-1 w-full flex items-center gap-2 px-2 py-2 rounded-xl text-gray-500 hover:text-gray-200 hover:bg-white/5 text-sm transition-colors"
           >
             <PlusIcon />
             Add a card
@@ -205,43 +244,5 @@ export function Column({
         )}
       </div>
     </div>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6M14 11v6" />
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
   );
 }

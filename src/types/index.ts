@@ -1,6 +1,12 @@
+export type Priority = 'low' | 'medium' | 'high';
+
 export interface Task {
   id: string;
   content: string;
+  description?: string;
+  priority?: Priority;
+  /** ISO date string (YYYY-MM-DD) */
+  dueDate?: string;
   createdAt: number;
 }
 
